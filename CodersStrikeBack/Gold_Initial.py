@@ -13,18 +13,6 @@ for i in range(checkpoint_count):
     gen_checkpoints.append(int(j) for j in input().split())
 
 
-def populate_checkpoints():
-    try:
-        while True:
-            for abc in gen_checkpoints:
-                checkpoints.append(Point(int(next(abc)), int(next(abc))))
-    except StopIteration:
-        pass
-
-
-populate_checkpoints()
-
-
 ########################
 # Init Functions
 
@@ -63,7 +51,7 @@ class Pod:
         self.nextCheckpointId = paramNextCheckpointId
 
     def get_location(self):
-        return self.x, self.y
+        return Point(self.x, self.y)
 
     def get_speed_vector(self):
         return Vector(self.vx, self.vy)
@@ -85,13 +73,27 @@ class Pod:
     def get_facing_angle_to_point(self, p):
         return calc_angle(self.get_facing_vector(), Vector(p.x - self.x, p.y - self.y))
 
-    def get_future_position(self):
+    def get_future(self, paramTarget, paramThrust):
         # Rotation
+        future_angle = 0
+        calc_angle = -18
+        current_angle = self.get_facing_angle_to_point(paramTarget)
+        if current_angle > 180:
+            calc_angle = 18
+        theta = math.radians(angle)
+        cs = math.cos(theta)
+        sn = math.sin(theta)
+        px = x * cs - y * sn
+        py = x * sn + y * cs
         # Acceleration
-        # Pseudo: Facing vect * thrust/100 -> add to speed vect
+        future_speed_vect = self.get_facing_vector().get_in_magnitude(paramThrust/100).add_vect(self.get_speed_vector())
         # Movement
-        next_location = Point(self.x + self.vx, self.y + self.vy)
+        future_location = Point(self.x + future_speed_vect.x, self.y + future_speed_vect.y)
         # Friction
+        future_speed_vect = future_speed_vect.get_in_magnitude(0.85)
+        # Post Calculus
+        future_checkpoint = 0
+        return Pod(future_location.x, future_location.y, future_speed_vect.x, future_speed_vect.y, future_angle, future_checkpoint)
 
 
 class Vector:
@@ -104,12 +106,22 @@ class Vector:
     def get(self):
         return self
 
+    def add_vect(self, v):
+        rx = self.x + v.x
+        ry = self.y + v.y
+        return Vector(rx, ry)
+
     def get_length(self):
         return math.sqrt((self.x ** 2) + (self.y ** 2))
 
     def get_normalized(self, paramMagnitude):
         fx = self.x * (paramMagnitude/self.get_length())
         fy = self.y * (paramMagnitude/self.get_length())
+        return Vector(fx, fy)
+
+    def get_in_magnitude(self, paramMagnitude):
+        fx = self.x * paramMagnitude
+        fy = self.y * paramMagnitude
         return Vector(fx, fy)
 
     def get_perpendicular(self):
@@ -139,6 +151,18 @@ def calc_angle(v1, v2):
     rads %= 2 * pi
     return degrees(rads)
 
+
+def populate_checkpoints():
+    try:
+        while True:
+            for abc in gen_checkpoints:
+                checkpoints.append(Point(int(next(abc)), int(next(abc))))
+    except StopIteration:
+        pass
+
+
+populate_checkpoints()
+
 ########################
 # game loop
 while True:
@@ -166,16 +190,19 @@ while True:
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr)
 
+    p0_f1 = racer[0].get_future(checkpoints[racer[0].nextCheckpointId], 100)
+    logger((racer[0].get_location().x, racer[0].get_location().y))
+    logger((p0_f1.x, p0_f1.y))
 
     # You have to output the target position
     # followed by the power (0 <= thrust <= 100)
     # i.e.: "x y thrust"
     ### POD 0
-    output_0 = Output(Point(0, 0), "100", "--POD_0--")
+    output_0 = Output(checkpoints[racer[0].nextCheckpointId], "100", "--POD_0--")
     out_0 = (output_0.target.x, output_0.target.y, output_0.thrust, output_0.comment)
     ### POD 1
-    output_1 = Output(Point(0, 0), "100", "--POD_1--")
-    out_1 = (output_0.target.x, output_0.target.y, output_0.thrust, output_0.comment)
+    output_1 = Output(checkpoints[racer[1].nextCheckpointId], "100", "--POD_1--")
+    out_1 = (output_1.target.x, output_1.target.y, output_1.thrust, output_1.comment)
     out = (out_0, out_1)
     # Ouput Area
     for o in out:
