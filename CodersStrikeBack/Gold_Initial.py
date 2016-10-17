@@ -130,7 +130,7 @@ class Vector:
         return Vector(self.y * (-1), self.x)
 
     def apply_to(self, p):
-        return Vector(p.x + self.x, p.y + self.y)
+        return Point(p.x + self.x, p.y + self.y)
 
     def to_integer(self):
         return Vector(int(self.x), int(self.y))
@@ -162,26 +162,28 @@ class ProfileRacer(Profiler):
         self.res.comment = "--RACER--"
 
     def process(self):
-        if self.pod.get_distance_to(self.pod.nextCheckpoint) > 2000:
+        if self.pod.get_distance_to(self.pod.nextCheckpoint) > 250:
             vect_pod_checkp = self.pod.get_vector_to(self.pod.nextCheckpoint)
         else:
             vect_pod_checkp = self.pod.get_vector_to(checkpoints[(self.pod.nextCheckpointId + 1) % checkpoint_count])
-        vect_pod_checkp.add_vect(self.pod.get_speed_vector().get_in_magnitude(-0.9))
+        vect_pod_checkp.add_vect(self.pod.get_speed_vector().get_in_magnitude(-2))
         self.res.target = vect_pod_checkp.get_normalized(600).to_integer().apply_to(self.pod.get_location())
 
     def action_rating(self):
         t = self.res.target
         mod = [1, 1, 1]
         fangle_perC = (1 - (180 - abs(self.pod.get_facing_angle_to_point(t) - 180)) / 180) * 100
+        log(fangle_perC)
         angle_perC = (1 - (180 - abs(self.pod.get_angle_to_point(t) - 180)) / 180) * 100
+        log(angle_perC)
         res = 100
         distance = self.pod.get_distance_to(self.pod.nextCheckpoint)
         if fangle_perC < 50: mod[0] = 0.75
         if fangle_perC < 35: mod[0] = 0.5
         if fangle_perC < 15: mod[0] = 0.2
-        if angle_perC < 50: mod[1] = 0.75
-        if angle_perC < 35: mod[1] = 0.5
-        if angle_perC < 15: mod[1] = 0.2
+        if angle_perC < 50: mod[1] = 0.9
+        if angle_perC < 35: mod[1] = 0.75
+        if angle_perC < 15: mod[1] = 0.35
         if distance < 1000: mod[2] = 0.75
         if distance < 750: mod[2] = 0.5
         for m in mod:
@@ -208,7 +210,18 @@ def populate_checkpoints():
         pass
 
 
+def calculate_checkpoint_edges():
+    res = []
+    prev_cpt = checkpoints[0]
+    for tmp_cnt in range(1, len(checkpoints) + 1):
+        v_con = Vector(checkpoints[tmp_cnt%checkpoint_count].x - prev_cpt.x, checkpoints[tmp_cnt%checkpoint_count].y - prev_cpt.y)
+        np = v_con.get_normalized(300).apply_to(prev_cpt)
+        res.append(Point(int(np.x), int(np.y)))
+        prev_cpt = checkpoints[tmp_cnt%checkpoint_count]
+    return res
+
 populate_checkpoints()
+checkpoints = calculate_checkpoint_edges()
 
 ########################
 # game loop
