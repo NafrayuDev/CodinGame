@@ -13,14 +13,28 @@ def logger(data):
 # Grab Snaffles and try to throw them through the opponent's goal!
 # Move towards a Snaffle and use your team id to determine where you need to throw it.
 
+round_counter = 0
 my_team_id = int(input())  # if 0 you need to score on the right of the map, if 1 you need to score on the left
-target_goal = (16000, 3750)
-if my_team_id == 1:
-    target_goal = (0, 3750)
 
 
 ###
 # Classes
+class Team:
+    id = 0
+    goal_own = 0
+    goal_enemy = 0
+    magic = 0
+
+    def __init__(self, paramId):
+        self.id = paramId
+        if self.id == 1:
+            self.goal_enemy = (0, 3750)
+            self.goal_own = (16000, 3750)
+        else:
+            self.goal_enemy = (16000, 3750)
+            self.goal_own = (0, 3750)
+
+
 class Vector:
     x, y = 0, 0
 
@@ -78,7 +92,6 @@ class Wizard(Entity):
         snaffle_distances = {}
         for snaffle in snaffles:
             snaffle_distances[self.get_distance_to(Vector(snaffle.x, snaffle.y))] = snaffle
-        logger(snaffle_distances)
         nearest = min(snaffle_distances.keys())
         return snaffle_distances[nearest]
 
@@ -87,6 +100,7 @@ class Output:
     command = ""
     x, y = 0, 0
     power = 0
+    profile = ""
 
     def __init__(self, paramCommand, paramX, paramY, paramPower):
         self.command = paramCommand
@@ -95,7 +109,7 @@ class Output:
         self.power = paramPower
 
     def print_action(self):
-        print(*(self.command, self.x, self.y, self.power))
+        print(*(self.command, self.x, self.y, self.power, self.profile))
 
     @staticmethod
     def spell_obliviate(paramId):
@@ -114,11 +128,100 @@ class Output:
         print(*("FLIPENDO", paramId))
 
 
+class ProfileBasic:
+    wizard = 0
+
+    def __init__(self, paramWizard):
+        self.wizard = paramWizard
+
+    def action(self):
+        out = Output("MOVE", 0, 0, 0)
+        nxt_snaffle = wizard.get_next_snaffle()
+        out.x = nxt_snaffle.x
+        out.y = nxt_snaffle.y
+        out.power = 150
+
+        if wizard.entity.state == 1:
+            out.command = "THROW"
+            out.x = myTeam.goal_enemy[0]
+            out.y = myTeam.goal_enemy[1]
+            out.power = 500
+
+        out.print_action()
+
+
+class ProfileDefend:
+    wizard = 0
+    score = 100
+
+    def __init__(self, paramWizard):
+        self.wizard = paramWizard
+
+    def action_rating(self):
+        for snaffle in snaffles:
+            if snaffle.x < 8000:
+                self.score += 5
+        return self.score
+
+    def action(self):
+        snaffle_distances = {}
+        for snaffle in snaffles:
+            snaffle_distances[snaffle.x] = snaffle
+        nearest = min(snaffle_distances.keys())
+        out = Output("MOVE", 0, 0, 0)
+        nxt_snaffle = snaffle_distances[nearest]
+        out.x = nxt_snaffle.x
+        out.y = nxt_snaffle.y
+        out.power = 150
+        out.profile = "-DEFENDER-"
+
+        if wizard.entity.state == 1:
+            out.command = "THROW"
+            out.x = myTeam.goal_enemy[0]
+            out.y = myTeam.goal_enemy[1]
+            out.power = 500
+
+        out.print_action()
+
+
+class ProfileAttack:
+    wizard = 0
+    score = 100
+
+    def __init__(self, paramWizard):
+        self.wizard = paramWizard
+
+    def action_rating(self):
+        for snaffle in snaffles:
+            if snaffle.x > 8000:
+                self.score += 2
+        return self.score
+
+    def action(self):
+        out = Output("MOVE", 0, 0, 0)
+        nxt_snaffle = wizard.get_next_snaffle()
+        out.x = nxt_snaffle.x
+        out.y = nxt_snaffle.y
+        out.power = 150
+        out.profile = "-ATTACKER-"
+
+        if wizard.entity.state == 1:
+            out.command = "THROW"
+            out.x = myTeam.goal_enemy[0]
+            out.y = myTeam.goal_enemy[1]
+            out.power = 500
+
+        out.print_action()
+###
+# Global Area
+myTeam = Team(my_team_id)
+
 # game loop
 while True:
+    round_counter += 2
     entities_count = int(input())  # number of entities still in game
     entities = []
-    wizards, enemys, snaffles, bludgers = [], [], [], []
+    wizards, enemies, snaffles, bludgers = [], [], [], []
     for i in range(entities_count):
         # entity_id: entity identifier
         # entity_type: "WIZARD", "OPPONENT_WIZARD" or "SNAFFLE" (or "BLUDGER" after first league)
@@ -133,29 +236,27 @@ while True:
         if e.e_type == "WIZARD":
             wizards.append(Wizard(e))
         elif e.e_type == "OPPONENT_WIZARD":
-            enemys.append(Wizard(e))
+            enemies.append(Wizard(e))
         elif e.e_type == "SNAFFLE":
             snaffles.append(e)
         elif e.e_type == "BLUDGER":
             bludgers.append(e)
 
     for wizard in wizards:
-        out = Output("MOVE", 0, 0, 0)
-        nxt_snaffle = wizard.get_next_snaffle()
-        out.x = nxt_snaffle.x
-        out.y = nxt_snaffle.y
-        out.power = 150
+        selected_profile = 0
+        selected_profile_score = 0
+        profiler_list = [ProfileDefend(wizard), ProfileAttack(wizard)]
+        for profile in profiler_list:
+            if profile.action_rating() > selected_profile_score:
+                selected_profile = profile
+
+        selected_profile.action()
+
+        # Profile_Basic(wizard).action()
 
         # Write an action using print
         # To debug: print("Debug messages...", file=sys.stderr)
 
-        if wizard.entity.state == 1:
-            out.command = "THROW"
-            out.x = target_goal[0]
-            out.y = target_goal[1]
-            out.power = 500
-
         # Edit this line to indicate the action for each wizard (0 ≤ thrust ≤ 150, 0 ≤ power ≤ 500)
         # i.e.: "MOVE x y thrust" or "THROW x y power"
-        out.print_action()
         # print("MOVE 8000 3750 100")
